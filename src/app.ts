@@ -42,5 +42,38 @@ app.post("/otp/send", async (req: Request, res: Response) => {
   // send the otp via msg (in console for now)
   console.log(`OTP for ${phone}: ${OTP}`);
   // return the reponse
-  return res.status(200).json({ message: "OTP sent successfully" });
+  res.status(200).json({ message: "OTP sent successfully" });
+});
+
+// now verify the otp with orginally generated one
+app.post("/otp/verify", async (req: Request, res: Response) => {
+  // get the phone and otp from body
+  const { phone, otp } = req.body;
+  // check if the phone and otp exists or not
+  if (!phone || !otp) {
+    res.status(400).json({ message: "Otp and phone number is required" });
+  }
+  // add a count for otp attempts
+  const attempts = await redis.incr(`otp:attemps:${phone}`);
+  // check if the attempts exceed the limit of 5 then return an error
+  if (attempts > 5) {
+    res.status(429).json({ message: "Too many requests! Request a new OTP." });
+  }
+  // now get the stored otp from redis
+  const storedOTP = await redis.get(`otp:${phone}`);
+  // check if stroed otp exists or not, if not the nreturn an error
+  if (!storedOTP) {
+    res.status(400).json({ message: "OTP Expirted!" });
+  }
+  // check if the stored otp is not equal to given otp, then return an error
+  if (storedOTP !== otp) {
+    res.status(400).json({ message: "Incorrect OTP. Generate new OTP!" });
+  }
+
+  //   after verification delete both otp and attempts
+  await redis.del(`otp:${phone}`);
+  await redis.del(`otp:attempts:${phone}`);
+
+  //   return the response
+  res.status(200).json({ message: "Verified!" });
 });
