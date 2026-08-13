@@ -33,7 +33,7 @@ app.post("/otp/send", async (req: Request, res: Response) => {
   );
   // then check if the cooldown still valid then return an error to wait untill it expires
   if (!coolDown) {
-    res.status(429).json({ message: "Please wait to get new OTP!" });
+    return res.status(429).json({ message: "Please wait to get new OTP!" });
   }
   // generate the otp
   const OTP = generateOTP();
@@ -51,23 +51,29 @@ app.post("/otp/verify", async (req: Request, res: Response) => {
   const { phone, otp } = req.body;
   // check if the phone and otp exists or not
   if (!phone || !otp) {
-    res.status(400).json({ message: "Otp and phone number is required" });
+    return res
+      .status(400)
+      .json({ message: "Otp and phone number is required" });
   }
   // add a count for otp attempts
-  const attempts = await redis.incr(`otp:attemps:${phone}`);
+  const attempts = await redis.incr(`otp:attempts:${phone}`);
   // check if the attempts exceed the limit of 5 then return an error
   if (attempts > 5) {
-    res.status(429).json({ message: "Too many requests! Request a new OTP." });
+    return res
+      .status(429)
+      .json({ message: "Too many requests! Request a new OTP." });
   }
   // now get the stored otp from redis
   const storedOTP = await redis.get(`otp:${phone}`);
   // check if stroed otp exists or not, if not the nreturn an error
   if (!storedOTP) {
-    res.status(400).json({ message: "OTP Expirted!" });
+    return res.status(400).json({ message: "OTP Expirted!" });
   }
   // check if the stored otp is not equal to given otp, then return an error
   if (storedOTP !== otp) {
-    res.status(400).json({ message: "Incorrect OTP. Generate new OTP!" });
+    return res
+      .status(400)
+      .json({ message: "Incorrect OTP. Generate new OTP!" });
   }
 
   //   after verification delete both otp and attempts
