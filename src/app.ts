@@ -1,4 +1,5 @@
 import express, { type Request, type Response } from "express";
+import { redis } from "./db/connect";
 
 export const app = express();
 app.use(express.json());
@@ -7,4 +8,39 @@ app.get("/", (req: Request, res: Response) => {
   res.send("Server is running 🚀");
 });
 
-//
+// helper function to generate the random otp number
+function generateOTP(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// api for sending the otp to phone number
+app.post("/otp/send", async (req: Request, res: Response) => {
+  // get the phone number from body
+  const { phone } = req.body;
+  // check if the phone number does not exists then return the error
+  if (!phone) {
+    return res
+      .status(404)
+      .json({ message: "Please enter a valid phone number" });
+  }
+  //   set the cooldown timer for otp
+  const coolDown = await redis.set(
+    `otp:cooldown:${phone}`,
+    "1",
+    "EX",
+    60,
+    "NX",
+  );
+  // then check if the cooldown still valid then return an error to wait untill it expires
+  if (!coolDown) {
+    res.status(429).json({ message: "Please wait to get new OTP!" });
+  }
+  // generate the otp
+  const OTP = generateOTP();
+  // set the otp to the redis
+  await redis.set(`otp:${phone}`, OTP, "EX", 300);
+  // send the otp via msg (in console for now)
+  console.log(`OTP for ${phone}: ${OTP}`);
+  // return the reponse
+  return res.status(200).json({ message: "OTP sent successfully" });
+});
