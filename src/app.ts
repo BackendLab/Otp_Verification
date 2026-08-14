@@ -1,5 +1,6 @@
 import express, { type Request, type Response } from "express";
 import { redis } from "./db/connect";
+import { twilioClient, twilioPhone } from "./config/twilio";
 
 export const app = express();
 app.use(express.json());
@@ -40,7 +41,18 @@ app.post("/otp/send", async (req: Request, res: Response) => {
   // set the otp to the redis
   await redis.set(`otp:${phone}`, OTP, "EX", 300);
   // send the otp via msg (in console for now)
-  console.log(`OTP for ${phone}: ${OTP}`);
+  // console.log(`OTP for ${phone}: ${OTP}`);
+
+  // now send the otp with message using twilio
+  const message = `${OTP} is your OTP for verification. Valid for 5 minutes only. Never share this code with anyone`;
+
+  // call the twilio to send the message
+  await twilioClient.messages.create({
+    body: message,
+    from: twilioPhone,
+    to: phone,
+  });
+
   // return the reponse
   res.status(200).json({ message: "OTP sent successfully" });
 });
